@@ -91,6 +91,88 @@ class ComWeChatChannel(SlaveChannel):
         self.dir = self.config["dir"]
         if not self.dir.endswith(os.path.sep):
             self.dir += os.path.sep
+        
+        try:
+            import subprocess
+            import json
+            
+            url = 'http://127.0.0.1:18888/api/?type=35'
+            payload = {'version': '3.9.12.55'}
+            payload_str = json.dumps(payload)
+            
+            self.logger.info(f"向Hook发送微信版本号: {payload['version']}")
+            cmd = ["curl", "-X", "POST", url, "-d", payload_str]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            
+            if result.returncode != 0:
+                self.logger.error(f"设置微信版本号的curl命令执行失败. Curl stderr: {result.stderr.strip()}")
+            else:
+                try:
+                    response = json.loads(result.stdout)
+                    # Assuming a response with 'result' == 'OK' indicates success.
+                    if response.get('result') == 'OK':
+                        self.logger.info("成功设置微信版本号.")
+                    else:
+                        self.logger.error(f"设置微信版本号失败，Hook返回: {result.stdout.strip()}")
+                except json.JSONDecodeError:
+                    self.logger.error(f"解析Hook返回的JSON失败. Response: {result.stdout.strip()}")
+                    
+        except Exception as e:
+            self.logger.error(f"设置微信版本号失败: {e}")
+
+        # WSL环境检测和路径转换配置
+        self.is_wsl = self._detect_wsl()
+        if self.is_wsl:
+            self.logger.info("检测到WSL环境，启用WSL到Windows路径转换")
+            try:
+                import subprocess
+                import json
+
+                # 移除末尾的路径分隔符
+                clean_dir = self.dir.rstrip(os.path.sep)
+                win_path = self._wsl_to_windows_path(clean_dir)
+
+                payload = {"save_path": win_path}
+                payload_str = json.dumps(payload)
+
+                # 设置图片保存路径 (type=13)
+                url13 = 'http://127.0.0.1:18888/api/?type=13'
+                self.logger.info(f"向Hook发送图片保存路径: {win_path}")
+                cmd13 = ["curl", "-X", "POST", url13, "-d", payload_str]
+                result13 = subprocess.run(cmd13, capture_output=True, text=True, timeout=5)
+                if result13.returncode != 0:
+                    self.logger.error(f"设置图片保存路径的curl命令执行失败. Curl stderr: {result13.stderr.strip()}")
+                else:
+                    try:
+                        response = json.loads(result13.stdout)
+                        if response.get('msg') == 1 and response.get('result') == 'OK':
+                            self.logger.info("成功设置Hook图片保存路径.")
+                        else:
+                            self.logger.error(f"设置Hook图片保存路径失败，Hook返回: {result13.stdout.strip()}")
+                    except json.JSONDecodeError:
+                        self.logger.error(f"解析Hook返回的JSON失败. Response: {result13.stdout.strip()}")
+
+                # 设置语音保存路径 (type=11)
+                url11 = 'http://127.0.0.1:18888/api/?type=11'
+                self.logger.info(f"向Hook发送语音保存路径: {win_path}")
+                cmd11 = ["curl", "-X", "POST", url11, "-d", payload_str]
+                result11 = subprocess.run(cmd11, capture_output=True, text=True, timeout=5)
+                if result11.returncode != 0:
+                    self.logger.error(f"设置语音保存路径的curl命令执行失败. Curl stderr: {result11.stderr.strip()}")
+                else:
+                    try:
+                        response = json.loads(result11.stdout)
+                        if response.get('msg') == 1 and response.get('result') == 'OK':
+                            self.logger.info("成功设置Hook语音保存路径.")
+                        else:
+                            self.logger.error(f"设置Hook语音保存路径失败，Hook返回: {result11.stdout.strip()}")
+                    except json.JSONDecodeError:
+                        self.logger.error(f"解析Hook返回的JSON失败. Response: {result11.stdout.strip()}")
+
+            except Exception as e:
+                self.logger.error(f"设置Windows Hook路径失败: {e}")
+        
         ChatMgr.slave_channel = self
 
         @self.bot.on("self_msg")
@@ -743,9 +825,17 @@ class ComWeChatChannel(SlaveChannel):
             self.send_text(wxid = chat_uid , msg = msg)
         elif msg.type in [MsgType.Image , MsgType.Sticker]:
             name = os.path.basename(msg.file.name)
-            local_path =f"{self.dir}{self.wxid}/{name}"
+            local_path = f"{self.dir}{self.wxid}/{name}"
             load_temp_file_to_local(msg.file, local_path)
-            img_path = self.base_path + "\\" + self.wxid + "\\" + name
+            
+            # WSL环境下需要将路径转换为Windows格式
+            if self.is_wsl:
+                img_path = self._wsl_to_windows_path(local_path)
+                self.logger.debug(f"WSL路径转换: {local_path} -> {img_path}")
+            else:
+                img_path = os.path.join(self.base_path, self.wxid, name)
+            
+            self.logger.debug(f"发送图片路径: {img_path}")
             res = self.bot.SendImage(receiver = chat_uid , img_path = img_path)
             self.delete_file[local_path] = int(time.time())
             if msg.text:
@@ -754,14 +844,23 @@ class ComWeChatChannel(SlaveChannel):
             name = os.path.basename(msg.file.name)
             local_path = f"{self.dir}{self.wxid}/{name}"
             load_temp_file_to_local(msg.file, local_path)
-            file_path = self.base_path + "\\" + self.wxid + "\\" + name
+            
             if msg.filename:
                 try:
                     os.rename(local_path , f"{self.dir}{self.wxid}/{msg.filename}")
                 except:
                     os.replace(local_path , f"{self.dir}{self.wxid}/{msg.filename}")
                 local_path = f"{self.dir}{self.wxid}/{msg.filename}"
-                file_path = self.base_path + "\\" + self.wxid + "\\" + msg.filename
+            
+            # WSL环境下需要将路径转换为Windows格式
+            if self.is_wsl:
+                file_path = self._wsl_to_windows_path(local_path)
+                self.logger.debug(f"WSL路径转换: {local_path} -> {file_path}")
+            else:
+                filename = msg.filename if msg.filename else name
+                file_path = os.path.join(self.base_path, self.wxid, filename)
+            
+            self.logger.debug(f"发送文件路径: {file_path}")
             res = self.bot.SendFile(receiver = chat_uid , file_path = file_path)
             self.delete_file[local_path] = int(time.time())
             if msg.text:
@@ -772,7 +871,15 @@ class ComWeChatChannel(SlaveChannel):
             name = os.path.basename(msg.file.name)
             local_path = f"{self.dir}{self.wxid}/{name}"
             load_temp_file_to_local(msg.file, local_path)
-            file_path = self.base_path + "\\" + self.wxid + "\\" + local_path.split("/")[-1]
+            
+            # WSL环境下需要将路径转换为Windows格式
+            if self.is_wsl:
+                file_path = self._wsl_to_windows_path(local_path)
+                self.logger.debug(f"WSL路径转换: {local_path} -> {file_path}")
+            else:
+                file_path = os.path.join(self.base_path, self.wxid, name)
+            
+            self.logger.debug(f"发送动画表情路径: {file_path}")
             res = self.bot.SendEmotion(wxid = chat_uid , img_path = file_path)
             self.delete_file[local_path] = int(time.time())
             if msg.text:
@@ -907,5 +1014,47 @@ class ComWeChatChannel(SlaveChannel):
     def GetGroupListBySql(self):
         self.group_members = self.bot.GetAllGroupMembersBySql()
     #定时更新 End
+    
+    def _detect_wsl(self) -> bool:
+        """检测是否在WSL环境中运行"""
+        try:
+            # 检查/proc/version文件是否包含WSL标识
+            if os.path.exists('/proc/version'):
+                with open('/proc/version', 'r') as f:
+                    version_info = f.read().lower()
+                    return 'microsoft' in version_info or 'wsl' in version_info
+            return False
+        except:
+            return False
+    
+    def _wsl_to_windows_path(self, wsl_path: str) -> str:
+        """将WSL路径转换为Windows路径"""
+        if not self.is_wsl:
+            return wsl_path
+            
+        try:
+            # 处理 /mnt/c/ 格式的路径
+            if wsl_path.startswith('/mnt/'):
+                # /mnt/c/Users/... -> C:\Users\...
+                parts = wsl_path.split('/', 3)
+                if len(parts) >= 3:
+                    drive_letter = parts[2].upper()
+                    if len(parts) > 3:
+                        path_part = parts[3].replace('/', '\\')
+                        return f"{drive_letter}:\\{path_part}"
+                    else:
+                        return f"{drive_letter}:\\"
+            
+            # 如果不是/mnt/格式，尝试使用wslpath命令转换
+            import subprocess
+            result = subprocess.run(['wslpath', '-w', wsl_path], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception as e:
+            self.logger.warning(f"WSL路径转换失败: {wsl_path}, 错误: {e}")
+        
+        # 转换失败时返回原路径
+        return wsl_path
 
 
