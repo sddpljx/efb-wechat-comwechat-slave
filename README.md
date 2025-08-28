@@ -19,7 +19,7 @@
    ```
 3. 重启计算机
 4. 首次启动 Ubuntu，设置用户名和密码
-5. 在 Windows 开始菜单中找到 WSL Settings，在网络选项卡中把网络模式改为 Mirrored
+5. 在 Windows 开始菜单中找到 WSL Settings，在网络选项卡中把网络模式改为 Mirrored，并重启 WSL 使得修改生效。
 
 ## WSL内安装从端
 
@@ -84,7 +84,7 @@
    dir: "/mnt/c/Users/yourusername/Documents/WeChat\ Files"
    ```
 
-   > **关于路径**：WSL 会自动将 Windows 的盘符挂载到 `/mnt/` 目录下。例如，Windows 中的 `C:\Users\yourusername` 路径在 WSL2 中对应为 `/mnt/c/Users/yourusername`。请根据你的实际情况修改 `dir` 配置中的路径。注意，路径中的空格需要使用反斜杠 `\` 进行转义。
+   > **关于路径**：WSL 会自动将 Windows 的盘符挂载到 `/mnt/` 目录下。例如，Windows 中的 `C:\Users\yourusername` 路径在 WSL2 中对应为 `/mnt/c/Users/yourusername`。请根据你的实际情况修改 `dir` 配置中的路径。注意，路径中的空格需要使用反斜杠 `\` 进行转义。由于微信在 Windows 中的默认存放路径为 文档/WeChat Files，这里以默认路径作为演示。
 
 ## 实现Windows端对微信的Hook
 
@@ -108,6 +108,7 @@
    ehforwarderbot -p ComWeChat
    ```
    启动后，日志会显示从端已经根据 dir 中填写的 WSL 路径，将 Hook 路径自动映射为Windows路径。此时测试相关功能是否正常。
+
 
 
 
