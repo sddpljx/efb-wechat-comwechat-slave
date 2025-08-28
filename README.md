@@ -23,7 +23,8 @@
 
 ## WSL内安装从端
 
-> 从端的安装分为两种情况，如果之前运行过EFB，可以把 .ehforwarderbot 文件夹整体迁移到 WSL 的用户目录下，例如 /home/yourusername/.ehforwarderbot，不建议直接使用 root 用户.可以使用 conda 或 uv 管理 Python 环境，依据个人喜好。
+> 从端的安装分为两种情况，如果之前运行过EFB，可以把 .ehforwarderbot 文件夹整体迁移到 WSL 的用户目录下，例如 /home/yourusername/.ehforwarderbot，不建议直接使用 root 用户。若直接复制原有配置，可直接关注 3 和 7 部分。
+> 可以使用 conda 或 uv 管理 Python 环境，依据个人喜好。
 > 从端的安装可参考 [教程](https://514.live/2023/10/04/efbwechattg)，去除 docker 相关部分。
 
 1. 更新系统包：
@@ -106,4 +107,5 @@
    ehforwarderbot -p ComWeChat
    ```
    启动后，日志会显示从端已经根据 dir 中填写的 WSL 路径，将 Hook 路径自动映射为Windows路径。此时测试相关功能是否正常。
+
 
